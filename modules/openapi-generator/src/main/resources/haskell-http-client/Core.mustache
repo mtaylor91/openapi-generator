@@ -6,6 +6,7 @@ Module : {{baseModule}}.Core
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -57,6 +58,10 @@ import Data.Foldable(foldlM)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import Prelude (($), (.), (<$>), (<*>), Maybe(..), Bool(..), Char, String, fmap, mempty, pure, return, show, IO, Monad, Functor)
+
+-- | Implement MonadFail for Either String
+instance P.MonadFail (P.Either String) where
+  fail = P.Left
 
 -- * {{configType}}
 
@@ -426,7 +431,7 @@ instance MimeRender MimeMultipartFormData DateTime where
   mimeRender _ = mimeRenderDefaultMultipartFormData
 
 -- | @{{#dateTimeParseFormat}}TI.parseTimeM True TI.defaultTimeLocale "{{{dateTimeParseFormat}}}"{{/dateTimeParseFormat}}{{^dateTimeParseFormat}}{{#dateTimeFormat}}TI.parseTimeM True TI.defaultTimeLocale "{{{dateTimeFormat}}}"{{/dateTimeFormat}}{{^dateTimeFormat}}_parseISO8601{{/dateTimeFormat}}{{/dateTimeParseFormat}}@
-_readDateTime :: (TI.ParseTime t, Monad m{{^dateTimeFormat}}, Alternative m{{/dateTimeFormat}}) => String -> m t
+_readDateTime :: (TI.ParseTime t, Monad m, P.MonadFail m{{^dateTimeFormat}}, Alternative m{{/dateTimeFormat}}) => String -> m t
 _readDateTime =
   {{#dateTimeParseFormat}}TI.parseTimeM True TI.defaultTimeLocale "{{{dateTimeParseFormat}}}"{{/dateTimeParseFormat}}{{^dateTimeParseFormat}}{{#dateTimeFormat}}TI.parseTimeM True TI.defaultTimeLocale "{{{dateTimeFormat}}}"{{/dateTimeFormat}}{{^dateTimeFormat}}_parseISO8601{{/dateTimeFormat}}{{/dateTimeParseFormat}}
 {-# INLINE _readDateTime #-}
@@ -438,7 +443,7 @@ _showDateTime =
 {-# INLINE _showDateTime #-}
 
 -- | parse an ISO8601 date-time string
-_parseISO8601 :: (TI.ParseTime t, Monad m, Alternative m) => String -> m t
+_parseISO8601 :: (TI.ParseTime t, Monad m, P.MonadFail m, Alternative m) => String -> m t
 _parseISO8601 t =
   P.asum $
   P.flip (TI.parseTimeM True TI.defaultTimeLocale) t <$>
@@ -463,7 +468,7 @@ instance MimeRender MimeMultipartFormData Date where
   mimeRender _ = mimeRenderDefaultMultipartFormData
 
 -- | @TI.parseTimeM True TI.defaultTimeLocale "{{{dateFormat}}}"@
-_readDate :: (TI.ParseTime t, Monad m) => String -> m t
+_readDate :: (TI.ParseTime t, Monad m, P.MonadFail m) => String -> m t
 _readDate =
   TI.parseTimeM True TI.defaultTimeLocale "{{{dateFormat}}}"
 {-# INLINE _readDate #-}
@@ -495,7 +500,7 @@ instance MimeRender MimeMultipartFormData ByteArray where
   mimeRender _ = mimeRenderDefaultMultipartFormData
 
 -- | read base64 encoded characters
-_readByteArray :: Monad m => Text -> m ByteArray
+_readByteArray :: (Monad m, P.MonadFail m) => Text -> m ByteArray
 _readByteArray = P.either P.fail (pure . ByteArray) . BL64.decode . BL.fromStrict . T.encodeUtf8
 {-# INLINE _readByteArray #-}
 
@@ -521,7 +526,7 @@ instance P.Show Binary where
 instance MimeRender MimeMultipartFormData Binary where
   mimeRender _ = unBinary
 
-_readBinaryBase64 :: Monad m => Text -> m Binary
+_readBinaryBase64 :: (Monad m, P.MonadFail m) => Text -> m Binary
 _readBinaryBase64 = P.either P.fail (pure . Binary) . BL64.decode . BL.fromStrict . T.encodeUtf8
 {-# INLINE _readBinaryBase64 #-}
 
